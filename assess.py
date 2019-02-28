@@ -31,8 +31,10 @@ from laser_geometry import LaserProjection
 
 kernel = numpy.ones((50, 20), numpy.uint8)
 
+global mask, red, blu, yel, gren
+
 class Follower:
-    def __init__(self, msg):
+    def __init__(self):
         self.bridge = cv_bridge.CvBridge()
         self.image_sub = rospy.Subscriber('/camera/rgb/image_raw', Image,
                                           self.image_callback)
@@ -46,12 +48,9 @@ class Follower:
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         red = cv2.inRange(hsv, numpy.array([0, 100, 100]), numpy.array([10, 255, 255]))
         yel = cv2.inRange(hsv, numpy.array([20, 100, 100]), numpy.array([40, 255, 255]))
-        blu = cv2.inRange(hsv, numpy.array([110, 100, 100]), numpy.array([130, 255, 255]))
+        blu = cv2.inRange(hsv, numpy.array([110, 100, 100]), numpy.array([140, 255, 255]))
         gre = cv2.inRange(hsv, numpy.array([50, 100, 100]), numpy.array([70, 255, 255]))
-	mask = red
-	mask += yel
-	#mask += blu
-	#mask += gre
+	mask = red + yel + blu + gre
         h, w, d = image.shape
         search_top = 0
         search_bot = h
@@ -63,49 +62,57 @@ class Follower:
 	found = 0
 
 	if M['m00'] == 0:
+		self.twist.linear.x = 0.0
 		self.twist.angular.z = 0.5
-		self.cmd_vel_pub.publish(self.twist)
-		print('twisting')
+		#self.cmd_vel_pub.publish(self.twist)
+		#print('twisting')
 	else:
 	    cx = int(M['m10']/M['m00'])
 	    cy = int(M['m01']/M['m00'])
-	    cv2.circle(image, (cx, cy), 20, (0, 0, 255), -1)
+	   # cv2.circle(image, (cx, cy), 20, (0, 0, 255), -1)
 	    err = cx - w/2
+	    self.twist.linear.x = 0.0
 
 	    if mask[h-1, w/2] != 0:
-		self.twist.angular.z = 0.5
+		#self.twist.linear.z = 0.5
 		print("Here!")
-		if numpy.any(mask == yel)|numpy.any (mask == red):
-			mask -= red
-			print("Found Y")
-			mask -= yel
-			found +=1
-			if mask[h-1, w/2] == 0:
+		if found == 0:
+			mask = mask - blu
+			found = 1
+		
+		#elif numpy.all (mask == blu):
+		#	mask -= blu
+		#	print("Found B")
+#		elif numpy.any(mask == gre):
+		#	mask -= gre
+		#	print("Found G")
+			if found == 1:
+				self.twist.linear.x = 0.0
 				self.twist.angular.z = 0.5
-				self.cmd_vel_pub.publish(self.twist)
-				print('twisting1')	
-			print("Found R")
-		elif numpy.all (mask == blu):
-			mask -= blu
-			print("Found b")
-		elif numpy.any(mask == gre):
-			mask -= gre
-			print("Found G")
+				#self.cmd_vel_pub.publish(self.twist)
+				print('twisting2')
+			#mask -= yel
+			
 		else:
-			self.twist.angular.z = 0.5
-			self.cmd_vel_pub.publish(self.twist)
-			print('twisting2')
+			mask -= yel
+			
 		
 		#stop 1m before cylinder if the bottom middle of the mask is white
 	    
 	    else:
 		self.twist.linear.x = 0.5
-    
+		if mask[search_top, search_bot] == 0:
+			#mask -= yel
+			self.twist.angular.z = 0.5
+			#self.cmd_vel_pub.publish(self.twist)
+			print('twisting1')	
+			print("Found R")
+
 	    self.twist.angular.z = -float(err) / 100
 	    print self.twist.angular.z
 	    #print(found)
 
-    	    self.cmd_vel_pub.publish(self.twist)
+    	    #self.cmd_vel_pub.publish(self.twist)
 
         cv2.imshow("window", image)
 	cv2.imshow("window1", mask)
@@ -114,6 +121,8 @@ class Follower:
 cv2.startWindowThread()
 rospy.init_node('follower')
 follower = Follower()
+follower.image_callback()
 rospy.spin()
 
 cv2.destroyAllWindows()
+
