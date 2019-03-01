@@ -12,8 +12,7 @@ from laser_geometry import LaserProjection
 
 kernel = numpy.ones((5, 5), numpy.uint8)
 
-global mask, red, blu, yel, gren, M
-found = 0
+global mask, red, blu, yel, gren, M, found
 search_top = 0
 
 class Follower:
@@ -35,6 +34,8 @@ class Follower:
 
 		mask = red + yel + blu + gre
 
+		found = 0
+
 		h, w, d = image.shape
 
 		search_bot = h
@@ -45,39 +46,49 @@ class Follower:
 		mask = cv2.erode(mask, kernel)
 		mask = cv2.medianBlur(mask,7)
 		
-		return (image, mask, red, yel, gre, blu)
+		return (image, mask, red, yel, gre, blu, found)
 
 
 	def image_callback(self, msg):
 		#mask = follower.image.mask
-		(img, mask, r, y, g, b) = self.imageMaskMaker(msg)
+		(img, mask, r, y, g, b, found) = self.imageMaskMaker(msg)
 		M = cv2.moments(mask)
 		h, w, _ = img.shape
 		t = Twist()
-		if numpy.all(mask == 0):
-			t.angular.z = 0.5
-			self.velPub.publish(t)
-
-		else:
-			cx = int(M['m10']/M['m00'])
-			cy = int(M['m01']/M['m00'])
-			cv2.circle(img, (cx,cy), 10, (0,0,255), -1)
-			err = cx - w/2
-
-			if mask[h-1, w/2] != 0:
-				t.linear.x = 0
-			
+		if found <= 5:
+			if numpy.all(mask == 0):
+				t.angular.z = 0.5
+				self.velPub.publish(t)	
 			else:
-				t.linear.x = 0.5
+				cx = int(M['m10']/M['m00'])
+				cy = int(M['m01']/M['m00'])
+				cv2.circle(img, (cx,cy), 10, (0,255,0), -1)
+				err = cx - w/2
+				if numpy.any(mask == y):	
+					if mask[h-1, w/2] != 0:
+						cv2.circle(img, (cx,cy), 10, (0,0,255), -1)
+						t.linear.x = 0
+						found = 1
+						if found == 1:
+							mask = mask-y					
+					else:
+						t.linear.x = 0.5				
+						if numpy.all(mask == 0):
+							t.angular.z = 0.5
+							self.velPub.publish(t)
 
-			t.angular.z = -float(err)/100
-			self.velPub.publish(t)
-		
-		#mask = mask - b
+				t.angular.z = -float(err)/100
+				self.velPub.publish(t)
+
+			print("here...")
+
+		print("there...")
 
 		cv2.imshow("Image", img)
 		cv2.imshow("Mask", mask)
 		cv2.waitKey(3)
+
+		return mask
 
 cv2.startWindowThread()
 rospy.init_node('follower')
