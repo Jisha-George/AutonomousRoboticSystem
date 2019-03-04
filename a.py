@@ -40,11 +40,11 @@ class Follower:
 		self.imageobj = msg
 		
 	def odom(self, msg):
-		self.orient = [0,0, msg.pose.pose.orientation.w, msg.pose.pose.orientation.z]
+		self.orient = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.w, msg.pose.pose.orientation.z]
 		self.ePose = euler_from_quaternion(self.orient)
 		self.qPose = quaternion_from_euler(self.ePose[0],self.ePose[1], self.ePose[2])
 		
-		return (self.ePose)	
+		return (self.orient, self.ePose)	
 
 #create random co-ordinates		
 	def node_gen(self, quantity):
@@ -64,16 +64,32 @@ class Follower:
 		print "here"				
 		self.movePub.publish(moveplz)					
 		
-	def spin(self, x):
-		r,p,y = self.ePose
-		t = Twist()	
-		t.angular.z = y
+	def spin(self,x):
+		(orient, ePose) = self.odom(self.odomObj)
+		self.init = True
+		angle = euler_from_quaternion(orient)[2] - x
+		self.init != self.init
+		t = Twist()
+		t.angular.z = x
 		self.velPub.publish(t)
-		r1,p1,y1 = self.ePose
-		print y
-		print y1
-		while y != y1:
+		
+		yaw = ePose[2]
+		if yaw == angle:
+			t.angular.z = 0.0
 			self.velPub.publish(t)
+		
+		
+
+		
+		#r,p,y = self.ePose
+#		t = Twist()	
+	#	t.angular.z = y
+		#self.velPub.publish(t)
+#		r1,p1,y1 = self.ePose
+	#	print y
+		#print y1
+#		while y != y1:
+	#		self.velPub.publish(t)
 			
 	def mapp(self,msg):
 		cv2.imwrite('map.png', cv2.flip(cv2.rotate(numpy.reshape(msg.data, newshape = (msg.info.height, msg.info.width)),cv2.ROTATE_90_COUNTERCLOCKWISE),1))
@@ -117,9 +133,8 @@ class Follower:
 	def main(self):
 
 		while not rospy.is_shutdown():
-
 			(img, mask, r, y, g, b, self.found) = self.imageMaskMaker(self.imageobj)
-			(ePose) = self.odom(self.odomObj)
+			(orient, ePose) = self.odom(self.odomObj)
 			M = cv2.moments(mask)
 			h, w, _ = img.shape
 			t = Twist()
@@ -157,11 +172,10 @@ class Follower:
 				print "setting co-ordinates" + str(temp)
 				print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..."
 				
-				self.spin()
+				self.spin(0.5)
 				
 			
-					#spin 360 at current co (x)
-				
+					#spin 360 at current co (x)	
 				
 						#if a colour is found while spinning 
 							#add new node
