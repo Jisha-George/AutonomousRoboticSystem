@@ -269,8 +269,9 @@ class Follower:
 							#set current node as complete
 
 						#if no nodes are reachable
-							#generate forest again
-									
+							#generate new forest
+						#if colours not found and all nodes reached
+							#generate new forest
 				
 
 
