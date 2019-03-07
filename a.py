@@ -114,24 +114,25 @@ class Follower:
 #######################################################################################################################################
 
 	def move(self, x, y):
-		moveplz = MoveBaseActionGoal()
-		moveplz.goal.target_pose.pose.position.x = x
-		moveplz.goal.target_pose.pose.position.y = y
-		moveplz.goal.target_pose.pose.orientation.w = 1
-		moveplz.goal.target_pose.header.stamp = rospy.Time.now()
-		moveplz.goal.target_pose.header.frame_id = 'map'
-		moveplz.goal.target_pose.header.seq = 101		
-		self.movePub.publish(moveplz)
+		co_move = MoveBaseActionGoal()
+		co_move.goal.target_pose.pose.position.x = x
+		co_move.goal.target_pose.pose.position.y = y
+		co_move.goal.target_pose.pose.orientation.w = 1
+		co_move.goal.target_pose.header.stamp = rospy.Time.now()
+		co_move.goal.target_pose.header.frame_id = 'map'
+		co_move.goal.target_pose.header.seq = 102
+		self.movePub.publish(co_move)
 		
 #######################################################################################################################################
 
-	def colour_move(self, x):
+	def colour_move(self, x, z):
 		colour_found = MoveBaseActionGoal()
 		colour_found.goal.target_pose.pose.position.x = x
-#		colour_found.goal.target_pose.pose.orientation.z		
+		#colour_found.goal.target_pose.pose.position.y = z
+		colour_found.goal.target_pose.pose.orientation.z = z
 		colour_found.goal.target_pose.pose.orientation.w = 1
 		colour_found.goal.target_pose.header.stamp = rospy.Time.now()
-		colour_found.goal.target_pose.header.frame_id = 'base_footprint'
+		colour_found.goal.target_pose.header.frame_id = 'base_link'
 		colour_found.goal.target_pose.header.seq = 101		
 		self.movePub.publish(colour_found)
 			
@@ -147,168 +148,162 @@ class Follower:
 		co = self.node_gen(15)
 		done = 3
 		fail = 4
+		sleep(3)
+		self.move(1,0)
+		sleep(5)
 		self.move(0,0)
-
-		while not rospy.is_shutdown():
+		sleep(5)
+		t = Twist()			
+		hn = 10
+		wn = 12
+		
+	
+		#while there are unvisited co-ordinates or there are unfound poles
+		while numpy.any(numpy.array(co) == False) or not([self.found[k] == True for k in self.found] == [True]*4):
 			
-			t = Twist()			
-			hn = 10
-			wn = 12
 			mapy = cv2.imread('map.png')
-		
-			while numpy.any(numpy.array(co) == False):
-				
-				temp = [dist for dist in co if dist[2] == False]
-				xP = numpy.round((numpy.array([x[0] for x in temp]) - (hn/2)) * mapy.shape[0]/-hn)
-				yP = numpy.round((numpy.array([y[1] for y in temp]) - (wn/2)) * mapy.shape[1]/-wn)
 			
-				#add co-ordinates to map
-				for i in range(len(xP)):
-					cv2.circle(mapy,(int(yP[i]),int(xP[i])),4,(255,255,0),-1)
-					cv2.imshow("map", mapy)
-					cv2.waitKey(10)
+			#create array containing unvisited co-ordinates
+			temp = [dist for dist in co if dist[2] == False]
 
-			#move to nearest co
-				#calculate the distance nearest co using the euclidian distance from current goal
-				
-				xval = numpy.array([x[0] for x in temp])
-				yval = numpy.array([y[1] for y in temp])
-				xstart = self.orient[0]
-				ystart = self.orient[1]
-				edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
-				next_id = numpy.argmin(edist)
-				#print "temp stuff"
-				self.move(temp[next_id][0], temp[next_id][1])
-				#print "setting co-ordinates" + str(temp)
-				print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..." + str(temp[next_id][2])
-				
-				sleep(10)
-				#spin 360 at current co (x)
+			#add pixel co-ordinates for map
+			xP = numpy.round((numpy.array([x[0] for x in temp]) - (hn/2)) * mapy.shape[0]/-hn)
+			yP = numpy.round((numpy.array([y[1] for y in temp]) - (wn/2)) * mapy.shape[1]/-wn)
+			for i in range(len(xP)):
+				cv2.circle(mapy,(int(yP[i]),int(xP[i])),4,(255,255,0),-1)
+				cv2.imshow("map", mapy)
+				cv2.waitKey(10)
 
-				t0 = time.time()
-				sleep(1)
+			#move to nearest co:
+			xval = numpy.array([x[0] for x in temp])
+			yval = numpy.array([y[1] for y in temp])
+			xstart = self.orient[0]
+			ystart = self.orient[1]
+			#calculate the euclidian distance from current goal to each node
+			edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
+			next_id = numpy.argmin(edist)
+			self.move(temp[next_id][0], temp[next_id][1])
+			print "setting co-ordinates" + str(co)
+			print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..." + str(temp[next_id][2])
+			sleep(10)
+			
+
+			
+			#spin 360 at current co (x)
+			t0 = time.time()
+			t1 = time.time()
+			print self.found
+			
+			while t1-t0 < 30:
+				(img, mask, r, yel, g, b, self.found) = self.image_callback(self.imageobj)
+				
+				M = cv2.moments(mask)
+				h, w, _ = img.shape
 				t1 = time.time()
-				print self.found
 				
-				while t1-t0 < 30:
-					(img, mask, r, yel, g, b, self.found) = self.image_callback(self.imageobj)
-					M = cv2.moments(mask)
-					h, w, _ = img.shape
-					t1 = time.time()
+				#if there are lost nodes
+				if (not([self.found[k] == True for k in self.found] == [True]*4)):			
 					
-					#if there are lost nodes
-					if (not([self.found[k] == True for k in self.found] == [True]*4)):			
-						
-
-
-
-						#if the mask is empty then spin
-						if numpy.all(mask[239, :] == 0):
-							#print("Mask ")
-							t.angular.z = 0.5
-							self.velPub.publish(t)
-						
-
-
-
-						#if an object is focused and the object is <1m away
-						elif mask[239,319]:
-
-							print("heyy " + str(self.dist))
-							
-							if self.dist < 0.9:
+					#if the mask is empty then spin
+					if numpy.all(mask[240, :] == 0):
+						t.angular.z = 0.5
+						self.velPub.publish(t)
 					
-								print("!!!something detected!!!")
+
+					#if an object is focused
+					elif mask[239,319]:
+						print("Object Centred " + str(self.dist))
 						
-								#find the colour of the object and set it to found
-								if r[239, 319] and not self.found["red"]:
-									print "found red"	
-									self.found["red"] = True	
-									break	
-								elif yel[239, 319] and not self.found["yellow"]:
-									print "found yellow"	
-									self.found["yellow"] = True	
-									break		
-								elif g[239, 319] and not self.found["green"]:
-									print "found green"	
-									self.found["green"] = True	
-									break	
-								elif b[239, 319] and not self.found["blue"]:
-									print "found blue"	
-									self.found["blue"] = True	
-									break
+						#if dist < 0.5
+						if numpy.isnan(self.dist):
+							self.colour_move(-0.5, self.orient[2])
+							sleep(0.5)
+						
+						
+						#if the object is  0.5<dist<1m  away
+						elif self.dist < 0.9:
+				
+							print("!!!something detected!!!")
+					
+							#find the colour of the object and set it to found
+							if r[239, 319] and not self.found["red"]:
+								print "Found Red"	
+								self.found["red"] = True	
+								break	
+							elif yel[239, 319] and not self.found["yellow"]:
+								print "Found Yellow"	
+								self.found["yellow"] = True	
+								break		
+							elif g[239, 319] and not self.found["green"]:
+								print "Found Green"	
+								self.found["green"] = True	
+								break	
+							elif b[239, 319] and not self.found["blue"]:
+								print "ound Blue"	
+								self.found["blue"] = True	
+								break
 
-
-
-
-						#otherwise spin till the object is in the middle of the screen & move forward
+						#if object is >1m away
 						else:
-							
-						#	maskL = numpy.sum(mask[239, 0:213])
-						#	maskC = numpy.sum(mask[239, 213:426])
-						#	maskR = numpy.sum(mask[239, 426:640])
-						#	
-						#	t2 = Twist()
-						#	if numpy.argmax([maskL, maskC, maskR]) == 0:
-						#		t2.angular.z  = 0.5
-						#	elif numpy.argmax([maskL, maskC, maskR]) == 1:
-						#		t2.linear.x  = 1
-						#	elif numpy.argmax([maskL, maskC, maskR]) == 2:
-						#		t2.angular.z  = -0.5
-						#	self.velPub.publish(t2)
-							
-							
-							#print "Moments"
-							cx = int(M['m10']/M['m00'])
-							cy = int(M['m01']/M['m00'])
-							err = cx - w/2
-							t.angular.z = -float(err)/100
-							t.linear.x = 0.75
-#							self.velPub.publish(t)
-							self.velPub.publish(t)
-							#self.colour_move(0.75)
-#							sleep(0.5)
-							
-							print '================'
-							print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
-				
-					else:
-						print("..")
-						break
+							self.colour_move(0.35,0)
+							sleep(0.5)
 
-					#if spin finished, current node complete
+					#otherwise spin till the object is in the middle of the screen & move forward
+					else:
+					 	print("Twist to Focus")
+						
+						maskL = numpy.sum(mask[239, 0:213])
+						maskC = numpy.sum(mask[239, 213:426])
+						maskR = numpy.sum(mask[239, 426:640])
+						
+					#	t2 = Twist()
+						if numpy.argmax([maskL, maskC, maskR]) == 0:
+							print("	- Twist left")
+							self.colour_move(0,0.3)
+							sleep(0.5)
+						elif numpy.argmax([maskL, maskC, maskR]) == 1:
+							print("	- Move forward")
+							self.colour_move(0.4,0)
+							sleep(1)
+						elif numpy.argmax([maskL, maskC, maskR]) == 2:
+							print("	- Twist right")
+							self.colour_move(0,-0.3)
+							sleep(0.5)
+						
+						print '================'
+						print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
+				
 				else:
-					print("spin finished")
-					temp[next_id][2] = True
+					end = (time.time() - start)/60 
+					print end
 					break
-						
-						
-						
-						
-							
-							#move towards colour
-							#mark as found
-							#break
-						#if x = 360
-							#set current node as complete
-						#if no nodes are reachable
-							#generate new forest
-							
-					#if temp		
-						#if colours not found and all nodes reached
-							#generate new forest
-							
-							
-			if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.node_gen(15)
+
+				#if spin finished, current node complete
+				
+			else:
+				print("spin finished")
+				temp[next_id][2] = True
+				print temp
+				
+				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
+					co = self.node_gen(15)	
 					
-		
-		end = time.time() - start 
-		
-		print end
-		
-#		else:
-	#		break
+					
+					
+					
+						
+						#move towards colour
+						#mark as found
+						#break
+					#if x = 360
+						#set current node as complete
+					#if no nodes are reachable
+						#generate new forest
+						
+				#if temp		
+					#if colours not found and all nodes reached
+						#generate new forest
+						
 		
 
 cv2.startWindowThread()
@@ -430,4 +425,32 @@ yP = (numpy.array([y[1] for y in co]) - (wn/2)) * mapy.shape[1]/-wn
 					cv2.waitKey(3)
 					
 					t1 = time.time()
+					
+					
+					
+					
+					
+					
+					
+					
+					
+					
+						#	self.velPub.publish(t2)
+							
+							
+							#print "Moments"
+							#cx = int(M['m10']/M['m00'])
+							#cy = int(M['m01']/M['m00'])
+							#err = cx - w/2
+							#t.angular.z = -float(err)/200
+							#t.linear.x = 0.75
+							#self.velPub.publish(t)
+							#self.colour_move(0.5,0)
+							
+							#sleep(1)
+					
+					
+					
+					
+					
 '''
