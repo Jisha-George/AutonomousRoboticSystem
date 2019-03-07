@@ -23,7 +23,7 @@ class Follower:
 	def __init__(self):
 		self.cvBridge = cv_bridge.CvBridge()
 		self.imgSub = rospy.Subscriber('/camera/rgb/image_raw', Image, self.image_callback)
-		self.scanSub = rospy.Subscriber('/scan', LaserScan, self.scan)
+		self.scanSub = rospy.Subscriber('/scan', LaserScan, self.scanning)
 		self.odomSub = rospy.Subscriber('/odom', Odometry, self.odom)
 		self.mapSub = rospy.Subscriber('/map', OccupancyGrid, self.mapp)
 #		self.statSub = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status)
@@ -55,7 +55,7 @@ class Follower:
 			
 #######################################################################################################################################
 
-	def scan(self, msg):
+	def scanning(self, msg):
 		self.dist = msg.ranges[320]
 		
 #######################################################################################################################################
@@ -116,7 +116,7 @@ class Follower:
 	def move(self, x, y):
 		moveplz = MoveBaseActionGoal()
 		moveplz.goal.target_pose.pose.position.x = x
-		moveplz.goal.target_pose.pose.orientation.z = y
+		moveplz.goal.target_pose.pose.position.y = y
 		moveplz.goal.target_pose.pose.orientation.w = 1
 		moveplz.goal.target_pose.header.stamp = rospy.Time.now()
 		moveplz.goal.target_pose.header.frame_id = 'map'
@@ -128,8 +128,7 @@ class Follower:
 	def colour_move(self, x):
 		colour_found = MoveBaseActionGoal()
 		colour_found.goal.target_pose.pose.position.x = x
-		colour_found.goal.target_pose.pose.position.y = 0
-		#colour_found.goal.target_pose.pose.orientation.z = 0.2		
+#		colour_found.goal.target_pose.pose.orientation.z		
 		colour_found.goal.target_pose.pose.orientation.w = 1
 		colour_found.goal.target_pose.header.stamp = rospy.Time.now()
 		colour_found.goal.target_pose.header.frame_id = 'base_footprint'
@@ -191,7 +190,7 @@ class Follower:
 				t1 = time.time()
 				print self.found
 				
-				while t1-t0 < 20:
+				while t1-t0 < 30:
 					(img, mask, r, yel, g, b, self.found) = self.image_callback(self.imageobj)
 					M = cv2.moments(mask)
 					h, w, _ = img.shape
@@ -214,11 +213,10 @@ class Follower:
 
 						#if an object is focused and the object is <1m away
 						elif mask[239,319]:
-							t.linear.x = 0.75
-							self.velPub.publish(t)
+
 							print("heyy " + str(self.dist))
-							if self.dist < 1.1:
-						
+							
+							if self.dist < 0.9:
 					
 								print("!!!something detected!!!")
 						
@@ -264,11 +262,12 @@ class Follower:
 							cx = int(M['m10']/M['m00'])
 							cy = int(M['m01']/M['m00'])
 							err = cx - w/2
-							z = -float(err)/250
-							t.angular.z = z
+							t.angular.z = -float(err)/100
+							t.linear.x = 0.75
+#							self.velPub.publish(t)
 							self.velPub.publish(t)
-							self.colour_move(1)
-							sleep(0.5)
+							#self.colour_move(0.75)
+#							sleep(0.5)
 							
 							print '================'
 							print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
