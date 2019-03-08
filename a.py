@@ -99,13 +99,28 @@ class Follower:
 		self.path.append([msg.pose.pose.position.x, msg.pose.pose.position.y])
 
 #######################################################################################################################################
-
 #create random co-ordinates		
 	def node_gen(self, quantity):
 		print("generating nodes...")
 		return [[randint(-4,3) + 0.5, randint(-5,4) + 0.5, False] for i in range(quantity)]
 		
+#######################################################################################################################################		
 
+	def new_node(self, quant, minD):
+		c = node_gen(1)
+		for i in range(quant):
+			while True:
+				next = node_gen(1)
+				if next in c:
+					break
+					
+				xval = numpy.array([x[0] for x in temp])
+				yval = numpy.array([y[1] for y in temp])
+					
+				if min(numpy.sqrt((xval-next[0])**2 + (yval-next[1])**2)) > minD:
+					c.append(next)
+				else:
+					break
 
 #######################################################################################################################################
 
@@ -328,15 +343,6 @@ cv2.destroyAllWindows()
 			
 #######################################################################################################################################
 
-def new_node(self, quant, minD):
-	c = node_gen(1)
-	for i in range(quant):
-		while True:
-			next = node_gen(1)
-			if min(euclidian_distance(c,next)) > minD:
-				concat(c,next)
-			else:
-				break
 
 	
 	
