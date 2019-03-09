@@ -107,20 +107,24 @@ class Follower:
 #######################################################################################################################################		
 
 	def new_node(self, quant, minD):
-		c = node_gen(1)
-		for i in range(quant):
+		c = self.node_gen(1)
+		for i in range(quant-1):
 			while True:
-				next = node_gen(1)
+				next = self.node_gen(1)
 				if next in c:
 					break
+
+				print next
+				print c
 					
-				xval = numpy.array([x[0] for x in temp])
-				yval = numpy.array([y[1] for y in temp])
+				xval = numpy.array([x[0] for x in c])
+				yval = numpy.array([y[1] for y in c])
 					
-				if min(numpy.sqrt((xval-next[0])**2 + (yval-next[1])**2)) > minD:
-					c.append(next)
+				if min(numpy.sqrt((xval-next[0][0])**2 + (yval-next[0][1])**2)) > minD:
+					c.append(next[0])
 				else:
 					break
+		return c
 
 #######################################################################################################################################
 
@@ -156,14 +160,12 @@ class Follower:
 	def main(self):
 		self.path = []
 		start = time.time()
-		co = self.node_gen(20)
-		done = 3
-		fail = 4
+		co = self.new_node(10, 1.5)
 		sleep(3)
 		self.move(1,0)
-		sleep(5)
+		sleep(10)
 		self.move(0,0)
-		sleep(5)
+		sleep(10)
 		t = Twist()			
 		hn = 10
 		wn = 12
@@ -193,9 +195,9 @@ class Follower:
 			edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
 			next_id = numpy.argmin(edist)
 			self.move(temp[next_id][0], temp[next_id][1])
-			print "setting co-ordinates" + str(co)
+			#print "setting co-ordinates" + str(co)
 			print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..." + str(temp[next_id][2])
-			sleep(15)
+			sleep(20)
 			
 			
 			#spin 360 at current co (x)
@@ -262,9 +264,9 @@ class Follower:
 					else:
 					 	print("Twist to Focus")
 						
-						maskL = numpy.sum(mask[239, 0:213])
-						maskC = numpy.sum(mask[239, 213:426])
-						maskR = numpy.sum(mask[239, 426:640])
+						maskL = numpy.sum(mask[239, 0:233])
+						maskC = numpy.sum(mask[239, 233:406])
+						maskR = numpy.sum(mask[239, 406:690])
 						
 						if numpy.argmax([maskL, maskC, maskR]) == 0:
 							print("	- Twist left")
@@ -289,10 +291,10 @@ class Follower:
 			else:
 				print("spin finished")
 				temp[next_id][2] = True
-				print temp
+				#print temp
 				
 				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.node_gen(10)	
+					co = self.new_node(10,1.5)	
 					
 		else:
 					end = (time.time() - start)/60 
