@@ -2,7 +2,6 @@ import numpy
 import cv2
 import cv_bridge
 import rospy
-import math
 import time
 
 from actionlib_msgs.msg import GoalStatusArray
@@ -107,30 +106,19 @@ class Follower:
 
 	def new_node(self, quant, minD):
 		c = self.node_gen(1)
+		
 		for i in range(quant-1):
-			#while True:
-			next = self.node_gen(1)				
-			if next in c:
-				break
-			else:
-				next = self.node_gen(1)
+			for j in range(50):
+				next = self.node_gen(1)		
 				
-			print next
-			print '------------------------------'
-			print c
-			print '============================='
-					
-			xval = numpy.array([x[0] for x in c])
-			yval = numpy.array([y[1] for y in c])
-					
-			if min(numpy.sqrt((xval-next[0][0])**2 + (yval-next[0][1])**2)) > minD:
-				c.append(next[0])
-				print next
-				print '------------------------------'
-				print c
-				print '============================='
-			else:
-				break
+				xval = numpy.array([x[0] for x in c])
+				yval = numpy.array([y[1] for y in c])
+				
+				if min(numpy.sqrt((xval-next[0][0])**2 + (yval-next[0][1])**2)) > minD:
+					if not next in c:
+						c.append(next[0])
+						break
+			
 		return c
 
 #######################################################################################################################################
@@ -166,7 +154,8 @@ class Follower:
 
 	def main(self):
 
-		co = self.new_node(2, 1.5)
+		co = self.new_node(2,1.5)
+		print co
 		sleep(3)
 		self.move(1,0)
 		sleep(10)
@@ -202,48 +191,50 @@ class Follower:
 			edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
 			next_id = numpy.argmin(edist)
 			self.move(temp[next_id][0], temp[next_id][1])
+			sleep(0.5)
+			self.move(temp[next_id][0], temp[next_id][1])
 			#print "setting co-ordinates" + str(co)
-			print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..." + str(temp[next_id][2])
-			sleep(25)
+			print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..."
+			sleep(30)
 			
 			#spin 360 at current co (x)
 			t0 = time.time()
+			t1 = time.time()
+			t2 = time.time()
+			t3 = time.time()
 			print self.found
 			
-			t0 = time.time()
-			current = 0
-			print angle
+			#while(current < angle):
 			
-			while(current < angle):
-			
-		#	while t1-t0 < 30:
+			while ((t1-t0 < 7) and (t3-t0 < 20) and (t2-t0 < 25)):
 				(img, mask, r, yel, g, b, self.found) = self.image_callback(self.imageobj)
 			
 				M = cv2.moments(mask)
 				h, w, _ = img.shape
 
-				
 			#if there are lost nodes
-				if (not([self.found[k] == True for k in self.found] == [True]*4)):			
-					t1 = 0
+				if (not([self.found[k] == True for k in self.found] == [True]*4)):
+					
 				#if the mask is empty then spin
 					if numpy.all(mask[240, :] == 0):
-						t.angular.z = -abs(speed)
-						self.velPub.publish(t)
-						t1 = time.time()			
+						t1 = time.time()
+						t.angular.z = -1
+						self.velPub.publish(t)			
 					
 					#if an object is focused
 					elif mask[239,319]:
+						t3 = time.time()
 						print("Object Centred " + str(self.dist))
+						print t3-t0
 					
 						#if dist < 0.5
 						if numpy.isnan(self.dist):
-							self.colour_move(-0.-25, self.orient[2])
+							self.colour_move(-0.25, self.orient[2])
 							sleep(0.5)
 					
-						#if the object is  0.5<dist<1m  away
-						elif self.dist < 1.1:
-			
+						#if the object is  0.5 <dist <1m  away
+						elif self.dist < 1.1 or self.dist == numpy.nan:
+							
 							print("!!!something detected!!!")
 				
 							#find the colour of the object and set it to found
@@ -271,9 +262,8 @@ class Follower:
 							sleep(0.5)
 					
 					#otherwise spin till the object is in the middle of the screen & move forward
-					
 					else:
-
+							t2 = time.time()
 							print("Twist to Focus")
 				
 							maskL = numpy.sum(mask[239, 0:250])
@@ -282,24 +272,20 @@ class Follower:
 					
 							if numpy.argmax([maskL, maskC, maskR]) == 0:
 								print("	- Twist left")
-								self.colour_move(0,0.3)
-								sleep(0.5)
+								self.colour_move(0,0.2)
+								sleep(0.3)
 							elif numpy.argmax([maskL, maskC, maskR]) == 1:
 								print("	- Move forward")
-								self.colour_move(0.5,0)
+								self.colour_move(0.6,0)
 								sleep(0.5)
 							elif numpy.argmax([maskL, maskC, maskR]) == 2:
 								print("	- Twist right")
-								self.colour_move(0,-0.3)
-								sleep(0.5)
-								print("twisted")
+								self.colour_move(0,-0.2)
+								sleep(0.3)
 				
 							print '================'
 							print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
-
-				
-				current = speed*(t1-t0)
-				print current
+							print t2-t0
 					
 				#if spin finished, current node complete
 			else:
@@ -308,16 +294,12 @@ class Follower:
 							#print temp
 			
 				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.new_node(2,2)
-					
-			
+					co = self.new_node(2,1.5)	
 				
 		else:
 			end = (time.time() - start)/60 
 			print end
 			exit()
-
-
 
 cv2.startWindowThread()
 #cv2.namedWindow("Image",1)
