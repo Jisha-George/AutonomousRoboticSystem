@@ -25,7 +25,7 @@ class Follower:
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self.scanning)
 		self.odomSub = rospy.Subscriber('/odom', Odometry, self.odom)
 		self.mapSub = rospy.Subscriber('/map', OccupancyGrid, self.mapp)
-#		self.statSub = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status)
+		self.newodom = rospy.Subscriber('/move_base/feedback', MoveBaseActionFeedback, self.new_odom)
 		
 		self.movePub = rospy.Publisher('/move_base/goal', MoveBaseActionGoal, queue_size = 1)
 		self.velPub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size =1)
@@ -37,24 +37,14 @@ class Follower:
 		self.ePose = []
 		self.odomObj = Odometry()
 		#self.ab = True
-		global mask, red, blu, yel, gre, M, PI, angle, speed
-		PI = 3.14159265359
-		speed= 45*2*PI/360
-		angle = 360*2*PI/360
-		sleep(0.1)
-
+		global mask, red, blu, yel, gre, M
+		sleep(2)
+		self.move(1,0)
+		sleep(10)
+		self.move(0,0)
+		sleep(10)
 		self.main()
-		
-#######################################################################################################################################
-	#def status(self, msg):
-		#try:
-			#self.stat = msg.status_list[len(msg.status_list)-1].status
-		#	self.ab = True
-#		except:
-			#if self.ab == True:
-	#			print "Error..."
-			#	self.ab = False
-			
+	
 #######################################################################################################################################
 
 	def scanning(self, msg):
@@ -93,9 +83,15 @@ class Follower:
 #######################################################################################################################################
 		
 	def odom(self, msg):
-		self.orient = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.orientation.w, msg.pose.pose.orientation.z]
+		self.orient = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
 		self.ePose = euler_from_quaternion(self.orient)
 		self.qPose = quaternion_from_euler(self.ePose[0],self.ePose[1], self.ePose[2])
+	
+#######################################################################################################################################
+	def new_odom(self, msg):
+		self.pos = [msg.feedback.base_position.pose.position.x, msg.feedback.base_position.pose.position.y, msg.feedback.base_position.pose.orientation.z, msg.feedback.base_position.pose.orientation.w]
+		self.NewePose = euler_from_quaternion(self.pos)
+		self.NewqPose = quaternion_from_euler(self.ePose[0],self.ePose[1], self.ePose[2])
 	
 #######################################################################################################################################
 #create random co-ordinates		
@@ -154,13 +150,8 @@ class Follower:
 
 	def main(self):
 
-		co = self.new_node(2,1.5)
+		co = self.new_node(4,1.5)
 		print co
-		sleep(3)
-		self.move(1,0)
-		sleep(10)
-		self.move(0,0)
-		sleep(10)
 		t = Twist()			
 		hn = 10
 		wn = 12
@@ -185,8 +176,8 @@ class Follower:
 			#move to nearest co:
 			xval = numpy.array([x[0] for x in temp])
 			yval = numpy.array([y[1] for y in temp])
-			xstart = self.orient[0]
-			ystart = self.orient[1]
+			xstart = self.pos[0]
+			ystart = self.pos[1]
 			#calculate the euclidian distance from current goal to each node
 			edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
 			next_id = numpy.argmin(edist)
@@ -229,7 +220,7 @@ class Follower:
 					
 						#if dist < 0.5
 						if numpy.isnan(self.dist):
-							self.colour_move(-0.25, self.orient[2])
+							self.colour_move(-0.25, self.pos[2])
 							sleep(0.5)
 					
 						#if the object is  0.5 <dist <1m  away
@@ -294,7 +285,7 @@ class Follower:
 							#print temp
 			
 				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.new_node(2,1.5)	
+					co = self.new_node(4,1.5)	
 				
 		else:
 			end = (time.time() - start)/60 
@@ -440,19 +431,19 @@ yP = (numpy.array([y[1] for y in co]) - (wn/2)) * mapy.shape[1]/-wn
 						if r[239, 319] and self.dist < 1:
 							self.found["red"] = True
 							print "found red"	
-							self.co.append([self.orient[0],self.orient[1],False])			
+							self.co.append([self.pos[0],self.pos[1],False])			
 						elif y[239, 319] and self.dist < 1:
 							self.found["yellow"] = True
 							print "found yellow"
-							self.co.append([self.orient[0],self.orient[1],False])
+							self.co.append([self.pos[0],self.pos[1],False])
 						elif g[239, 319] and self.dist < 1:
 							self.found["green"] = True
 							print "found green"
-							self.co.append([self.orient[0],self.orient[1],False])
+							self.co.append([self.pos[0],self.pos[1],False])
 						elif b[239, 319] and self.dist < 1:
 							self.found["blue"] = True
 							print "found blue"
-							self.co.append([self.orient[0],self.orient[1],False])
+							self.co.append([self.pos[0],self.pos[1],False])
 
 						if numpy.all(mask == 0):
 							t.angular.z = 0.5
