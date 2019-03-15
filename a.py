@@ -3,6 +3,7 @@ import cv2
 import cv_bridge
 import rospy
 import time
+import datetime
 
 from actionlib_msgs.msg import GoalStatusArray
 from sensor_msgs.msg import Image, LaserScan
@@ -23,10 +24,10 @@ class Follower:
 		self.cvBridge = cv_bridge.CvBridge()
 		self.imgSub = rospy.Subscriber('/camera/rgb/image_raw', Image, self.image_callback)
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self.scanning)
-		self.odomSub = rospy.Subscriber('/odom', Odometry, self.odom)
 		self.mapSub = rospy.Subscriber('/map', OccupancyGrid, self.mapp)
-		self.newodom = rospy.Subscriber('/move_base/feedback', MoveBaseActionFeedback, self.new_odom)
-		
+		self.odomSub = rospy.Subscriber('/move_base/feedback', MoveBaseActionFeedback, self.odom)
+		self.statSub = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status)
+				
 		self.movePub = rospy.Publisher('/move_base/goal', MoveBaseActionGoal, queue_size = 1)
 		self.velPub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size =1)
 		self.maskPub = rospy.Publisher('/13488071/images/mask', Image, queue_size = 1)
@@ -36,14 +37,39 @@ class Follower:
 		self.imageobj = Image()
 		self.ePose = []
 		self.odomObj = Odometry()
-		#self.ab = True
+		self.ab = True
+		
 		global mask, red, blu, yel, gre, M
 		sleep(2)
 		self.move(1,0)
-		sleep(10)
+		self.wait()
 		self.move(0,0)
-		sleep(10)
+		self.wait()
 		self.main()
+		
+#######################################################################################################################################
+	def status(self, msg):
+		try:
+			self.stat = msg.status_list[len(msg.status_list)-1].status
+			self.ab = True
+		except:
+			if self.ab == True:
+				self.ab = False
+			
+######################################################################################################################################
+	def wait(self):
+		timer = time.time()
+		sleep(1)
+		
+		while True:
+			cv2.waitKey(1)
+			
+			if self.stat == 3:
+				break;
+			elif self.stat == 4:
+				break;
+			elif(time.time()-timer > 30):
+				break;
 	
 #######################################################################################################################################
 
@@ -79,24 +105,15 @@ class Follower:
 		self.maskPub.publish(self.cvBridge.cv2_to_imgmsg(mask, encoding = 'mono8'))
 		
 		return (image, mask, red, yel, gre, blu, self.found)
-
-#######################################################################################################################################
-		
-	def odom(self, msg):
-		self.orient = [msg.pose.pose.position.x, msg.pose.pose.position.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
-		self.ePose = euler_from_quaternion(self.orient)
-		self.qPose = quaternion_from_euler(self.ePose[0],self.ePose[1], self.ePose[2])
 	
 #######################################################################################################################################
-	def new_odom(self, msg):
+	def odom(self, msg):
 		self.pos = [msg.feedback.base_position.pose.position.x, msg.feedback.base_position.pose.position.y, msg.feedback.base_position.pose.orientation.z, msg.feedback.base_position.pose.orientation.w]
-		self.NewePose = euler_from_quaternion(self.pos)
-		self.NewqPose = quaternion_from_euler(self.ePose[0],self.ePose[1], self.ePose[2])
 	
 #######################################################################################################################################
 #create random co-ordinates		
 	def node_gen(self, quantity):
-		return [[randint(-4,3) + 0.5, randint(-5,4) + 0.5, False] for i in range(quantity)]
+		return [[randint(-4,3) + 0.5, randint(-4,4) + 0.5, False] for i in range(quantity)]
 		
 #######################################################################################################################################		
 
@@ -150,7 +167,7 @@ class Follower:
 
 	def main(self):
 
-		co = self.new_node(4,1.5)
+		co = self.new_node(10,1.5)
 		print co
 		t = Twist()			
 		hn = 10
@@ -182,11 +199,9 @@ class Follower:
 			edist = numpy.sqrt((xval-xstart)**2+(yval-ystart)**2)
 			next_id = numpy.argmin(edist)
 			self.move(temp[next_id][0], temp[next_id][1])
-			sleep(0.5)
-			self.move(temp[next_id][0], temp[next_id][1])
 			#print "setting co-ordinates" + str(co)
 			print"checking: " + str(temp[next_id][0]) + ", " + str(temp[next_id][1]) + " ..."
-			sleep(30)
+			self.wait()
 			
 			#spin 360 at current co (x)
 			t0 = time.time()
@@ -215,8 +230,8 @@ class Follower:
 					#if an object is focused
 					elif mask[239,319]:
 						t3 = time.time()
-						print("Object Centred " + str(self.dist))
-						print t3-t0
+						#print("Object Centred " + str(self.dist))
+						#print t3-t0
 					
 						#if dist < 0.5
 						if numpy.isnan(self.dist):
@@ -224,9 +239,9 @@ class Follower:
 							sleep(0.5)
 					
 						#if the object is  0.5 <dist <1m  away
-						elif self.dist < 1.1 or self.dist == numpy.nan:
+						elif self.dist < 1.1 or numpy.isnan(self.dist):
 							
-							print("!!!something detected!!!")
+					#		print("!!!something detected!!!")
 				
 							#find the colour of the object and set it to found
 							if r[239, 319] and not self.found["red"]:
@@ -248,35 +263,35 @@ class Follower:
 
 						#if object is >1m away
 						else:
-							print "move forward"
+				#			print "move forward"
 							self.colour_move(0.5,0)
 							sleep(0.5)
 					
 					#otherwise spin till the object is in the middle of the screen & move forward
 					else:
 							t2 = time.time()
-							print("Twist to Focus")
+			#				print("Twist to Focus")
 				
 							maskL = numpy.sum(mask[239, 0:250])
 							maskC = numpy.sum(mask[239, 250:400])
 							maskR = numpy.sum(mask[239, 400:650])
 					
 							if numpy.argmax([maskL, maskC, maskR]) == 0:
-								print("	- Twist left")
+		#						print("	- Twist left")
 								self.colour_move(0,0.2)
 								sleep(0.3)
 							elif numpy.argmax([maskL, maskC, maskR]) == 1:
-								print("	- Move forward")
+	#							print("	- Move forward")
 								self.colour_move(0.6,0)
 								sleep(0.5)
 							elif numpy.argmax([maskL, maskC, maskR]) == 2:
-								print("	- Twist right")
+#								print("	- Twist right")
 								self.colour_move(0,-0.2)
 								sleep(0.3)
 				
-							print '================'
-							print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
-							print t2-t0
+							#print '================'
+							#print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
+						#	print t2-t0
 					
 				#if spin finished, current node complete
 			else:
@@ -285,16 +300,16 @@ class Follower:
 							#print temp
 			
 				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.new_node(4,1.5)	
+					co = self.new_node(10,1.5)	
 				
 		else:
-			end = (time.time() - start)/60 
+			end = datetime.timedelta(seconds=int(time.time()-start)) 
 			print end
+			
 			exit()
 
+#######################################################################################################################################
 cv2.startWindowThread()
-#cv2.namedWindow("Image",1)
-#cv2.namedWindow("Mask",2)
 rospy.init_node('follower')
 follower = Follower()
 rospy.spin()
@@ -311,10 +326,6 @@ cv2.destroyAllWindows()
 	
 			
 #######################################################################################################################################
-
-
-
-
 
 		xP = numpy.round((numpy.array([x[0] for x in self.path]) - (hn/2)) * mapy.shape[0]/-hn)
 		yP = numpy.round((numpy.array([y[1] for y in self.path]) - (wn/2)) * mapy.shape[1]/-wn)					
