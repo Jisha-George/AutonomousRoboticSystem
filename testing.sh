@@ -1,7 +1,5 @@
 #!/bin/bash
-mkdir -p tests
-for i in {1..100}
+for i in {1..7} 
 do
-	touch tests/training$i.txt
-	python a.py > tests/training$i.txt
+	python a.py | grep Time
 done

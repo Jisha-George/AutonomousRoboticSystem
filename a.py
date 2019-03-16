@@ -167,7 +167,7 @@ class Follower:
 
 	def main(self):
 
-		co = self.new_node(10,1.5)
+		co = self.new_node(4,2.5)
 		print co
 		t = Twist()			
 		hn = 10
@@ -246,19 +246,27 @@ class Follower:
 							#find the colour of the object and set it to found
 							if r[239, 319] and not self.found["red"]:
 								print "Found Red"	
-								self.found["red"] = True	
+								self.found["red"] = True
+								Rend = datetime.timedelta(seconds=int(time.time()-start)) 
+								print "   Red Time | " + str(Rend)
 								break	
 							elif yel[239, 319] and not self.found["yellow"]:
 								print "Found Yellow"	
-								self.found["yellow"] = True	
+								self.found["yellow"] = True
+								Yend = datetime.timedelta(seconds=int(time.time()-start)) 
+								print "Yellow Time | " + str(Yend)	
 								break		
 							elif g[239, 319] and not self.found["green"]:
 								print "Found Green"	
-								self.found["green"] = True	
+								self.found["green"] = True
+								Gend = datetime.timedelta(seconds=int(time.time()-start)) 
+								print " Green Time | " + str(Gend)	
 								break	
 							elif b[239, 319] and not self.found["blue"]:
 								print "Found Blue"	
 								self.found["blue"] = True	
+								Bend = datetime.timedelta(seconds=int(time.time()-start)) 
+								print "  Blue Time | " + str(Bend)
 								break
 
 						#if object is >1m away
@@ -280,14 +288,17 @@ class Follower:
 		#						print("	- Twist left")
 								self.colour_move(0,0.2)
 								sleep(0.3)
+								cv2.waitKey(3)
 							elif numpy.argmax([maskL, maskC, maskR]) == 1:
 	#							print("	- Move forward")
 								self.colour_move(0.6,0)
 								sleep(0.5)
+								cv2.waitKey(3)
 							elif numpy.argmax([maskL, maskC, maskR]) == 2:
 #								print("	- Twist right")
 								self.colour_move(0,-0.2)
 								sleep(0.3)
+								cv2.waitKey(3)
 				
 							#print '================'
 							#print str(self.dist)+"|"+str(r[239, 319])+"|"+str(yel[239, 319])+"|"+str(g[239, 319])+"|"+str(b[239, 319])
@@ -300,11 +311,12 @@ class Follower:
 							#print temp
 			
 				if (not([self.found[k] == True for k in self.found] == [True]*4)) and numpy.all(numpy.array(co)[:,2] == True):
-					co = self.new_node(10,1.5)	
+					co = self.new_node(4,2.5)	
 				
 		else:
 			end = datetime.timedelta(seconds=int(time.time()-start)) 
-			print end
+			print " Total Time | " + str(end)
+			print "__________Time__________"
 			
 			exit()
 
@@ -317,6 +329,7 @@ rospy.spin()
 cv2.destroyAllWindows()
 
 #######################################################################################################################################
+
 '''
 	
 	gen 1st
@@ -493,4 +506,3 @@ yP = (numpy.array([y[1] for y in co]) - (wn/2)) * mapy.shape[1]/-wn
 					
 					
 '''
-
