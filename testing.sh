@@ -1,5 +1,6 @@
 #!/bin/bash
-for i in {1..7} 
+touch testlog.txt
+for i in {1..100} 
 do
-	python a.py | grep Time
+	python a.py 10 1.5 $i >> testlog.txt
 done
