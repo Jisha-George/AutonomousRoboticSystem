@@ -1,7 +1,7 @@
 #!/bin/bash
-touch 10_1.5_test_log.txt
+touch 7_2_test_log.txt
 for i in {1..100} 
 do
 	echo $i
-	python a.py 10 1.5 $i >> 10_1.5_test_log.txt
+	python a.py 7 2 $i >> 7_2_test_log.txt
 done
