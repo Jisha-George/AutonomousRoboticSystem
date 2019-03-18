@@ -2,6 +2,7 @@ import numpy
 import cv2
 import cv_bridge
 import rospy
+import os
 import time
 
 from actionlib_msgs.msg import GoalStatusArray
@@ -38,7 +39,7 @@ class Follower:
 		self.found = {"red": False, "yellow": False, "green": False, "blue": False}
 		self.dist = 0.0
 		self.imageobj = Image()
-		self.ePose = []
+		self.path = []
 		self.odomObj = Odometry()
 		self.ab = True
 		
@@ -48,8 +49,10 @@ class Follower:
 		self.wait()
 		self.move(0,0)
 		self.wait()
+		self.path = []
 		self.main()
-		
+
+
 #######################################################################################################################################
 	def status(self, msg):
 		try:
@@ -112,11 +115,12 @@ class Follower:
 #######################################################################################################################################
 	def odom(self, msg):
 		self.pos = [msg.feedback.base_position.pose.position.x, msg.feedback.base_position.pose.position.y, msg.feedback.base_position.pose.orientation.z, msg.feedback.base_position.pose.orientation.w]
+		self.path.append([self.pos[0], self.pos[1]])
 	
 #######################################################################################################################################
 #create random co-ordinates		
 	def node_gen(self, quantity):
-		return [[randint(-4,3) + 0.5, randint(-4,4) + 0.5, False] for i in range(quantity)]
+		return [[float(randint(-8,6))/2, float(randint(-8,8))/02, False] for i in range(quantity)]
 		
 #######################################################################################################################################		
 
@@ -306,6 +310,17 @@ class Follower:
 			print " Total Time | " + str(end)
 			print("___________________________________________________________________________________________________________________")
 			
+
+#
+			#OUTPUT PATH TO mapy
+			xP2 = numpy.round((numpy.array([x[0] for x in self.path]) - (hn/2)) * mapy.shape[0]/-hn)
+			yP2 = numpy.round((numpy.array([y[1] for y in self.path]) - (wn/2)) * mapy.shape[1]/-wn)
+			for i in range(len(self.path)):
+				cv2.circle(mapy,(int(yP2[i]),int(xP2[i])),1,(150,255,70),-1)
+			if not os.path.exists('routes/'): os.mkdir('routes/')
+			cv2.imwrite(str("routes/path_" + str(argv[3]) + ".png"), mapy)
+
+
 			exit()
 
 #######################################################################################################################################
