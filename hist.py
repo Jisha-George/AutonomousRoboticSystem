@@ -1,10 +1,10 @@
+#import statements
 import numpy
 import cv2
 import cv_bridge
 import rospy
 import os
-import time
-
+#specific imports
 from actionlib_msgs.msg import GoalStatusArray
 from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist
@@ -17,6 +17,7 @@ from sys import argv
 
 #######################################################################################################################################
 
+#kernel size for eroding the mask (to get rid of the small pixels in the mask)
 kernel = numpy.ones((5, 5), numpy.uint8)
 
 #######################################################################################################################################
@@ -26,54 +27,55 @@ class Follower:
 	def __init__(self):
 		
 		self.cvBridge = cv_bridge.CvBridge()
+		#Subscribers
 		self.imgSub = rospy.Subscriber('/camera/rgb/image_raw', Image, self.image_callback)
 		self.scanSub = rospy.Subscriber('/scan', LaserScan, self.scanning)
 		self.mapSub = rospy.Subscriber('/map', OccupancyGrid, self.mapp)
 		self.odomSub = rospy.Subscriber('/move_base/feedback', MoveBaseActionFeedback, self.odom)
 		self.statSub = rospy.Subscriber('/move_base/status', GoalStatusArray, self.status)
-				
+		#Publisher		
 		self.movePub = rospy.Publisher('/move_base/goal', MoveBaseActionGoal, queue_size = 1)
 		self.velPub = rospy.Publisher('/mobile_base/commands/velocity', Twist, queue_size =1)
 		self.maskPub = rospy.Publisher('/13488071/images/mask', Image, queue_size = 1)
-		
+		#Variables
 		self.found = {"red": False, "yellow": False, "green": False, "blue": False}
 		self.dist = 0.0
 		self.imageobj = Image()
 		self.path = []
 		self.odomObj = Odometry()
 		self.ab = True
-		
+		self.path = []
+		self.nodehist = []
+		self.plot = int(argv[1])
+		self.mindy = float(argv[2])
 		global mask, red, blu, yel, gre, M
+                #start at 0,0
 		sleep(2)
 		self.move(1,0)
 		self.wait()
 		self.move(0,0)
 		self.wait()
-		self.path = []
-		self.nodehist = []
-		self.plot = int(argv[1])
-		self.mindy = float(argv[2])
 		self.main()
-
-
 		
 #######################################################################################################################################
+        #checks the status message given by the move_base/status topic
 	def status(self, msg):
 		try:
 			self.stat = msg.status_list[len(msg.status_list)-1].status
 			self.ab = True
-		except:
+		except: 
 			if self.ab == True:
 				self.ab = False
 			
 ######################################################################################################################################
+        #alternative function to sleep, waits for a success status, an aborted status or timeout
+	#saves time
 	def wait(self):
 		timer = time()
 		sleep(1)
 		
 		while True:
 			cv2.waitKey(1)
-			
 			if self.stat == 3:
 				break;
 			elif self.stat == 4:
@@ -82,12 +84,12 @@ class Follower:
 				break;
 	
 #######################################################################################################################################
-
+        #gets the data of the middle of the LaserScan from the /scan topic
 	def scanning(self, msg):
 		self.dist = msg.ranges[320]
 		
 #######################################################################################################################################
-		
+	#image callback fucntion to update the image everytime something changes, creates all the image object such as the mask	
 	def image_callback(self, msg):
 		self.imageobj = msg
 		image = self.cvBridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')		
@@ -117,17 +119,18 @@ class Follower:
 		return (image, mask, red, yel, gre, blu, self.found)
 	
 #######################################################################################################################################
+        #gets information of the position and orientation from move_base/feedback (more accurate and reliable than /odom)
 	def odom(self, msg):
 		self.pos = [msg.feedback.base_position.pose.position.x, msg.feedback.base_position.pose.position.y, msg.feedback.base_position.pose.orientation.z, msg.feedback.base_position.pose.orientation.w]
 		self.path.append([self.pos[0], self.pos[1]])
 	
 #######################################################################################################################################
-#create random co-ordinates		
+        #create random co-ordinates		
 	def node_gen(self, quantity):
 		return [[float(randint(-8,8))/2, float(randint(-10,10))/02, False] for i in range(quantity)]
 		
 #######################################################################################################################################		
-
+        #create random nodes that have no been genereated yet but is also a set minimum distance away from all the other nodes
 	def new_node(self, quant, minD):
 		genstartnode = self.node_gen(1)
 		 
@@ -178,7 +181,7 @@ class Follower:
 		return c
 
 #######################################################################################################################################
-
+        #global moving system that uses move_base
 	def move(self, x, y):
 		co_move = MoveBaseActionGoal()
 		co_move.goal.target_pose.pose.position.x = x
@@ -190,7 +193,7 @@ class Follower:
 		self.movePub.publish(co_move)
 		
 #######################################################################################################################################
-
+        #relative move_base system... activated when a colour in mask is present
 	def colour_move(self, x, z):
 		colour_found = MoveBaseActionGoal()
 		colour_found.goal.target_pose.pose.position.x = x
@@ -202,7 +205,7 @@ class Follower:
 		self.movePub.publish(colour_found)
 			
 #######################################################################################################################################
-		
+	#function that writes the map (courtesy of James Heselden)	
 	def mapp(self,msg):
 		cv2.imwrite('map.png', cv2.flip(cv2.rotate(numpy.reshape(msg.data, newshape = (msg.info.height, msg.info.width)),cv2.ROTATE_90_COUNTERCLOCKWISE),1))	
 		
@@ -288,25 +291,25 @@ class Follower:
 				
 							#find the colour of the object and set it to found
 							if r[239, 319] and not self.found["red"]:
-#								print "Found Red"	
+								print "Found Red"	
 								self.found["red"] = True
 								Rend = timedelta(seconds=int(time()-start)) 
 								print "   Red Time | " + str(Rend)
 								break	
 							elif yel[239, 319] and not self.found["yellow"]:
-#								print "Found Yellow"	
+								print "Found Yellow"	
 								self.found["yellow"] = True
 								Yend = timedelta(seconds=int(time()-start)) 
 								print "Yellow Time | " + str(Yend)	
 								break		
 							elif g[239, 319] and not self.found["green"]:
-#								print "Found Green"	
+								print "Found Green"	
 								self.found["green"] = True
 								Gend = timedelta(seconds=int(time()-start)) 
 								print " Green Time | " + str(Gend)	
 								break	
 							elif b[239, 319] and not self.found["blue"]:
-#								print "Found Blue"	
+								print "Found Blue"	
 								self.found["blue"] = True	
 								Bend = timedelta(seconds=int(time()-start)) 
 								print "  Blue Time | " + str(Bend)
@@ -357,7 +360,6 @@ class Follower:
 			print("___________________________________________________________________________________________________________________")
 			
 
-#
 			#OUTPUT PATH TO mapy
 			xP2 = numpy.round((numpy.array([x[0] for x in self.path]) - (hn/2)) * mapy.shape[0]/-hn)
 			yP2 = numpy.round((numpy.array([y[1] for y in self.path]) - (wn/2)) * mapy.shape[1]/-wn)
@@ -365,7 +367,6 @@ class Follower:
 				cv2.circle(mapy,(int(yP2[i]),int(xP2[i])),1,(150,255,70),-1)
 			if not os.path.exists('routes/'): os.mkdir('routes/')
 			cv2.imwrite(str("routes/path_" + str(argv[3]) + ".png"), mapy)
-
 
 			exit()
 
